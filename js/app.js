@@ -93,6 +93,7 @@ const app = {
   peerMc: null,
   staleTicks: 0,
   ping: 0,
+  transport: '',
   zoom: null,
   busy: false,
   overlay: null,
@@ -234,8 +235,9 @@ function refresh() {
     el.roomCode.textContent = app.room || '------';
     el.roomConnLabel.textContent = connLabel;
     el.roomConnDot.classList.toggle('waiting', !app.peerOnline);
-    el.pingText.classList.toggle('hidden', !app.peerOnline || !app.ping);
-    el.pingText.textContent = app.ping + ' ms';
+    const meter = app.peerOnline && app.ping ? app.ping + ' ms · ' + app.transport : app.transport;
+    el.pingText.classList.toggle('hidden', !meter);
+    el.pingText.textContent = meter;
   }
 
   const over = s.finished;
@@ -718,6 +720,17 @@ function leaveRoom() {
   app.peerMc = null;
   app.staleTicks = 0;
   app.ping = 0;
+  app.transport = '';
+}
+
+function netHandlers() {
+  return {
+    onMessage: handleMessage,
+    onStatus: () => {
+      if (app.net) app.transport = app.net.activeName();
+      refresh();
+    },
+  };
 }
 
 async function startOnline(role, code) {
@@ -744,9 +757,9 @@ async function startOnline(role, code) {
   setOverlay('setup');
   refresh();
 
-  app.net = new Net(code, { onMessage: handleMessage, onStatus: () => {} });
+  app.net = new Net(code, netHandlers());
   try {
-    await app.net.connect();
+    app.transport = await app.net.connect();
   } catch (err) {
     app.net = null;
     el.roomHint.textContent = 'Bağlanılamadı. Ağ engelliyor olabilir, tekrar dene.';
@@ -865,9 +878,9 @@ async function rejoin() {
   const room = app.room;
   const role = app.role;
   if (app.net) app.net.close(true);
-  app.net = new Net(room, { onMessage: handleMessage, onStatus: () => {} });
+  app.net = new Net(room, netHandlers());
   try {
-    await app.net.connect();
+    app.transport = await app.net.connect();
   } catch (err) {
     app.net = null;
     return;

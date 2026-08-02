@@ -1,10 +1,11 @@
 const BROKERS = [
-  'wss://broker.emqx.io:8084/mqtt',
-  'wss://broker.hivemq.com:8884/mqtt',
-  'wss://test.mosquitto.org:8081/mqtt',
+  { name: 'emqx', url: 'wss://broker.emqx.io:8084/mqtt' },
+  { name: 'hivemq', url: 'wss://broker.hivemq.com:8884/mqtt' },
+  { name: 'mosquitto', url: 'wss://test.mosquitto.org:8081/mqtt' },
 ];
 
 const TOPIC_PREFIX = 'dots-oyunu/v1/';
+const OPEN_TIMEOUT = 8000;
 
 export function makeRoomCode() {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -27,77 +28,101 @@ export class Net {
     this.topic = TOPIC_PREFIX + room;
     this.id = clientId();
     this.handlers = handlers;
-    this.client = null;
-    this.broker = null;
+    this.links = [];
+    this.locked = null;
+    this.seq = 0;
+    this.lastSeq = new Map();
   }
 
   async connect() {
-    for (const url of BROKERS) {
-      try {
-        await this.tryBroker(url);
-        this.broker = url;
-        return url;
-      } catch (err) {
-        console.warn('broker unavailable', url, err && err.message);
-      }
+    const settled = await Promise.allSettled(BROKERS.map((b) => this.openLink(b)));
+    this.links = settled.filter((r) => r.status === 'fulfilled').map((r) => r.value);
+    for (const r of settled) {
+      if (r.status === 'rejected') console.warn('broker unavailable', r.reason && r.reason.message);
     }
-    throw new Error('Hiçbir aktarım sunucusuna bağlanılamadı');
+    if (!this.links.length) throw new Error('Hiçbir aktarım sunucusuna bağlanılamadı');
+    this.handlers.onStatus?.('online');
+    return this.activeName();
   }
 
-  tryBroker(url) {
+  openLink(broker) {
     return new Promise((resolve, reject) => {
-      let settled = false;
-      const client = window.mqtt.connect(url, {
-        clientId: this.id,
+      let opened = false;
+      const link = { name: broker.name, url: broker.url, client: null, alive: false };
+
+      const client = window.mqtt.connect(broker.url, {
+        clientId: this.id + '-' + broker.name,
         clean: true,
         keepalive: 30,
         connectTimeout: 6000,
-        reconnectPeriod: 0,
+        reconnectPeriod: 2000,
         protocolVersion: 4,
       });
+      link.client = client;
 
       const timer = setTimeout(() => {
-        if (settled) return;
-        settled = true;
+        if (opened) return;
         try { client.end(true); } catch (e) { /* ignore */ }
-        reject(new Error('zaman aşımı'));
-      }, 8000);
+        reject(new Error(broker.name + ': zaman aşımı'));
+      }, OPEN_TIMEOUT);
 
       client.on('error', (err) => {
-        if (settled) {
-          this.handlers.onStatus?.('error');
+        if (opened) {
+          this.markDown(link);
           return;
         }
-        settled = true;
         clearTimeout(timer);
         try { client.end(true); } catch (e) { /* ignore */ }
-        reject(err);
+        reject(new Error(broker.name + ': ' + (err && err.message ? err.message : 'hata')));
       });
 
+      client.on('offline', () => this.markDown(link));
+      client.on('close', () => this.markDown(link));
+      client.on('reconnect', () => this.handlers.onStatus?.('reconnecting'));
+
+      client.on('message', (topic, payload) => this.receive(link, payload));
+
       client.on('connect', () => {
-        if (settled) return;
         client.subscribe(this.topic, { qos: 1 }, (err) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timer);
           if (err) {
-            try { client.end(true); } catch (e2) { /* ignore */ }
-            reject(err);
+            if (!opened) {
+              clearTimeout(timer);
+              try { client.end(true); } catch (e) { /* ignore */ }
+              reject(new Error(broker.name + ': abone olunamadı'));
+            }
             return;
           }
-          client.options.reconnectPeriod = 2000;
-          this.client = client;
-          client.on('message', (topic, payload) => this.receive(payload));
-          client.on('reconnect', () => this.handlers.onStatus?.('reconnecting'));
-          client.on('offline', () => this.handlers.onStatus?.('offline'));
-          this.handlers.onStatus?.('online');
-          resolve();
+          link.alive = true;
+          if (opened) {
+            this.handlers.onStatus?.('online');
+            return;
+          }
+          opened = true;
+          clearTimeout(timer);
+          resolve(link);
         });
       });
     });
   }
 
-  receive(payload) {
+  markDown(link) {
+    if (!link.alive) return;
+    link.alive = false;
+    if (this.locked === link) this.locked = null;
+    this.handlers.onStatus?.('offline');
+  }
+
+  liveLinks() {
+    const live = this.links.filter((l) => l.alive);
+    return live.length ? live : this.links;
+  }
+
+  activeName() {
+    if (this.locked && this.locked.alive) return this.locked.name;
+    return this.liveLinks().map((l) => l.name).join('+');
+  }
+
+  receive(link, payload) {
     let msg;
     try {
       msg = JSON.parse(payload.toString());
@@ -105,22 +130,39 @@ export class Net {
       return;
     }
     if (!msg || msg.from === this.id) return;
+
+    if (typeof msg.n === 'number') {
+      const last = this.lastSeq.get(msg.from);
+      if (last !== undefined && msg.n <= last) return;
+      this.lastSeq.set(msg.from, msg.n);
+    }
+
+    if (this.locked !== link) {
+      this.locked = link;
+      this.handlers.onStatus?.('online');
+    }
     this.handlers.onMessage?.(msg);
   }
 
   send(msg) {
-    if (!this.client) return;
-    this.client.publish(this.topic, JSON.stringify({ ...msg, from: this.id }), { qos: 1 }, (err) => {
-      if (err) console.warn('publish failed', msg.t, err.message);
-    });
+    if (!this.links.length) return;
+    this.seq += 1;
+    const payload = JSON.stringify({ ...msg, from: this.id, n: this.seq });
+    const targets = this.locked && this.locked.alive ? [this.locked] : this.liveLinks();
+    for (const link of targets) {
+      link.client.publish(this.topic, payload, { qos: 1 }, (err) => {
+        if (err) console.warn('publish failed', link.name, msg.t, err.message);
+      });
+    }
   }
 
   close(silent) {
-    if (!this.client) return;
-    try {
-      if (!silent) this.send({ t: 'bye' });
-      this.client.end(true);
-    } catch (e) { /* ignore */ }
-    this.client = null;
+    if (!this.links.length) return;
+    if (!silent) this.send({ t: 'bye' });
+    for (const link of this.links) {
+      try { link.client.end(true); } catch (e) { /* ignore */ }
+    }
+    this.links = [];
+    this.locked = null;
   }
 }
