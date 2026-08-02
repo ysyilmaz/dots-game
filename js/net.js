@@ -119,7 +119,8 @@ export class Net {
 
   activeName() {
     if (this.locked && this.locked.alive) return this.locked.name;
-    return this.liveLinks().map((l) => l.name).join('+');
+    const live = this.links.filter((l) => l.alive);
+    return live.length ? live.map((l) => l.name).join('+') : 'bağlantı yok';
   }
 
   receive(link, payload) {

@@ -127,7 +127,7 @@ function myTurn() {
   if (!s || s.finished || app.busy) return false;
   if (app.mode === 'local') return true;
   if (!app.myColor) return false;
-  if (isOnline() && !app.peerOnline) return false;
+  if (isOnline() && !app.peerOnline && app.role !== 'host') return false;
   return s.turn === app.myColor;
 }
 
@@ -173,7 +173,10 @@ function toast(text) {
 function statusText(sc) {
   const s = app.state;
   if (isOnline() && !app.peerOnline) {
-    return app.role === 'host' ? 'Rakip bekleniyor — oda linkini paylaş.' : 'Odaya bağlanılıyor…';
+    if (app.role !== 'host') return 'Odaya bağlanılıyor…';
+    return myTurn()
+      ? 'Linki paylaş — beklemeden başlayabilirsin.'
+      : 'Rakip bekleniyor — linki paylaş.';
   }
   if (s.finished) {
     const res = s.resigned ? colorName(s.resigned) + ' pes etti. ' : '';
@@ -189,9 +192,9 @@ function statusText(sc) {
 function turnPillText() {
   const s = app.state;
   if (s.finished) return 'Oyun bitti';
-  if (isOnline() && !app.peerOnline) return 'Rakip bekleniyor';
   if (app.mode === 'local') return 'Sıra: ' + colorName(s.turn);
   if (myTurn()) return 'Sıra sende';
+  if (isOnline() && !app.peerOnline) return 'Rakip bekleniyor';
   return app.mode === 'bot' ? 'Bot düşünüyor' : 'Rakip oynuyor';
 }
 
@@ -211,7 +214,7 @@ function refresh() {
   el.nameRed.textContent = labelFor(RED);
   el.nameBlue.textContent = labelFor(BLUE);
 
-  const active = !s.finished && !app.busy && !(isOnline() && !app.peerOnline);
+  const active = !s.finished && !app.busy && !(isOnline() && !app.peerOnline && app.role !== 'host');
   const redTurn = active && s.turn === RED;
   const blueTurn = active && s.turn === BLUE;
   el.cardRed.classList.toggle('is-turn', redTurn);
@@ -754,7 +757,7 @@ async function startOnline(role, code) {
   el.roomHint.textContent = 'Aktarım sunucusuna bağlanılıyor…';
   resetCopyLabels();
   syncSetupMode();
-  setOverlay('setup');
+  setOverlay(null);
   refresh();
 
   app.net = new Net(code, netHandlers());
@@ -763,6 +766,8 @@ async function startOnline(role, code) {
   } catch (err) {
     app.net = null;
     el.roomHint.textContent = 'Bağlanılamadı. Ağ engelliyor olabilir, tekrar dene.';
+    setOverlay('setup');
+    toast('Bağlanılamadı — ağ engelliyor olabilir.');
     return;
   }
 
@@ -771,7 +776,7 @@ async function startOnline(role, code) {
     : 'Odaya girildi, oyun durumu bekleniyor…';
   syncSetupMode();
 
-  if (role === 'guest') app.net.send({ t: 'hello' });
+  if (role === 'guest') app.net.send({ t: 'hello', h: app.role === 'host' });
   else broadcast();
   sendPing();
   refresh();
@@ -799,8 +804,22 @@ function applyRemoteState(msg) {
   if (app.state.finished) scheduleOver();
 }
 
+function reconcileRole(msg) {
+  if (!isOnline() || !app.net || typeof msg.h !== 'boolean' || !msg.from) return;
+  const iAmHost = app.role === 'host';
+  if (msg.h !== iAmHost) return;
+  const shouldBeHost = app.net.id < msg.from;
+  if (shouldBeHost === iAmHost) return;
+  app.role = shouldBeHost ? 'host' : 'guest';
+  app.myColor = shouldBeHost ? RED : BLUE;
+  if (shouldBeHost) broadcast();
+  else app.net.send({ t: 'hello', h: false });
+  refresh();
+}
+
 function handleMessage(msg) {
   markPeer();
+  reconcileRole(msg);
 
   if (msg.t === 'bye') {
     app.peerOnline = false;
@@ -817,7 +836,7 @@ function handleMessage(msg) {
     app.net.send({ t: 'pong', ts: msg.ts });
     if (msg.mc !== app.state.moveCount) {
       if (app.role === 'host') broadcast();
-      else app.net.send({ t: 'hello' });
+      else app.net.send({ t: 'hello', h: app.role === 'host' });
     }
     refresh();
     return;
@@ -870,7 +889,7 @@ function handleMessage(msg) {
 
 function sendPing() {
   if (!isOnline() || !app.net || !app.state) return;
-  app.net.send({ t: 'ping', mc: app.state.moveCount, ts: Date.now() });
+  app.net.send({ t: 'ping', mc: app.state.moveCount, ts: Date.now(), h: app.role === 'host' });
 }
 
 async function rejoin() {
@@ -885,7 +904,7 @@ async function rejoin() {
     app.net = null;
     return;
   }
-  if (role === 'guest') app.net.send({ t: 'hello' });
+  if (role === 'guest') app.net.send({ t: 'hello', h: app.role === 'host' });
   else broadcast();
   sendPing();
 }
@@ -910,6 +929,12 @@ setInterval(() => {
     app.staleTicks = 0;
   }
 }, PING_EVERY);
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || !isOnline() || !app.net) return;
+  sendPing();
+  if (!app.peerOnline) rejoin();
+});
 
 function boot() {
   markSizePreset();
