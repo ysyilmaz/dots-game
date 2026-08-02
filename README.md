@@ -27,7 +27,9 @@ Skor = ele geçirilen rakip nokta sayısı. Oyun; tahta dolduğunda, iki oyuncu 
 
 ## Online nasıl çalışıyor
 
-Sunucu yok. Oyun durumu, `dots-oyunu/v1/<ODA_KODU>` konusu üzerinden herkese açık bir MQTT broker'ı (sırayla EMQX, HiveMQ, Mosquitto denenir) aktarılır. Oda kuran taraf otoritedir: hamleleri doğrular ve tam oyun durumunu yayınlar; katılan taraf hamle isteği gönderir. Her 7 saniyede bir yapılan durum yayını, kaybolan mesajlardan sonra iki tarafı tekrar aynı noktaya getirir.
+Sunucu yok. Oyun durumu, `dots-oyunu/v1/<ODA_KODU>` konusu üzerinden herkese açık bir MQTT broker'ı (sırayla EMQX, HiveMQ, Mosquitto denenir) aktarılır. Oda kuran taraf otoritedir: hamleleri doğrular ve tam oyun durumunu yayınlar; katılan taraf hamle isteği gönderir.
+
+İki taraf 7 saniyede bir hamle sayacını içeren bir ping atar. Sayaçlar tutuyorsa hiçbir şey yapılmaz; tutmuyorsa tam durum yeniden yayınlanır — yani kaybolan bir mesaj kendiliğinden telafi edilir, ama boşa trafik üretilmez.
 
 Oda kodu kısa ömürlü ve rastgeledir; broker herkese açık olduğu için hassas bir şey taşınmamalıdır — taşınan tek şey tahtadaki noktalardır.
 

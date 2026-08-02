@@ -5,7 +5,7 @@ import { pickBotMove } from './bot.js';
 
 const $ = (id) => document.getElementById(id);
 
-const MIN_CELL = 10;
+const MIN_CELL = 14;
 const MAX_CELL = 40;
 const PEER_TIMEOUT = 24000;
 const PING_EVERY = 7000;
@@ -411,7 +411,10 @@ function handleMessage(msg) {
     return;
   }
   if (msg.t === 'ping') {
-    if (app.role === 'host') broadcast();
+    if (msg.mc !== app.state.moveCount) {
+      if (app.role === 'host') broadcast();
+      else app.net.send({ t: 'hello' });
+    }
     refresh();
     return;
   }
@@ -457,8 +460,8 @@ function handleMessage(msg) {
 }
 
 setInterval(() => {
-  if (!isOnline() || !app.net) return;
-  app.net.send({ t: 'ping' });
+  if (!isOnline() || !app.net || !app.state) return;
+  app.net.send({ t: 'ping', mc: app.state.moveCount });
   if (app.peerOnline && Date.now() - app.peerAt > PEER_TIMEOUT) {
     app.peerOnline = false;
     refresh();
