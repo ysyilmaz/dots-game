@@ -1,4 +1,4 @@
-import { RED, BLUE, createState, play, pass, resign, scores, encodeState, decodeState } from './rules.js';
+import { RED, BLUE, createState, play, pass, resign, scores, encodeState, decodeState, canPlay, captureGain, opponent } from './rules.js';
 import { BoardView, coordLabel } from './render.js';
 import { Net, makeRoomCode } from './net.js';
 import { pickBotMove } from './bot.js';
@@ -14,7 +14,8 @@ const STALE_LIMIT = 3;
 const TOAST_MS = 2600;
 const COPY_MS = 1600;
 const OVER_DELAY = 450;
-const MOVE_ROWS = 120;
+const ANA_CANDIDATES = 600;
+const ANA_MARKS = 14;
 
 const el = {
   board: $('board'),
@@ -38,8 +39,22 @@ const el = {
   roomBox: $('roomBox'),
   roomCode: $('roomCode'),
   pingText: $('pingText'),
-  moveCount: $('moveCount'),
-  moveList: $('moveList'),
+  scoreHistory: $('scoreHistory'),
+  historyCount: $('historyCount'),
+  historyList: $('historyList'),
+  anaSwitch: $('anaSwitch'),
+  anaLegend: $('anaLegend'),
+  chanceLabel: $('chanceLabel'),
+  riskLabel: $('riskLabel'),
+  anaPanel: $('anaPanel'),
+  anaFor: $('anaFor'),
+  chanceText: $('chanceText'),
+  chanceValue: $('chanceValue'),
+  riskText: $('riskText'),
+  riskValue: $('riskValue'),
+  balChance: $('balChance'),
+  balRisk: $('balRisk'),
+  anaHint: $('anaHint'),
   modeGrid: $('modeGrid'),
   sizeSeg: $('sizeSeg'),
   inpW: $('inpW'),
@@ -82,13 +97,16 @@ const app = {
   busy: false,
   overlay: null,
   overShown: false,
+  historyOpen: false,
+  analysis: false,
 };
 
 let botTimer = null;
 let toastTimer = null;
 let copyTimer = null;
 let overTimer = null;
-let movesKey = '';
+let anaCache = { game: null, data: null };
+let historyKey = '';
 
 const isOnline = () => app.mode === 'online';
 const colorName = (p) => (p === RED ? 'Kırmızı' : 'Mavi');
@@ -221,13 +239,13 @@ function refresh() {
   }
 
   const over = s.finished;
-  $('btnPass').classList.toggle('hidden', over || !myTurn());
   $('btnUndo').classList.toggle('hidden', !canUndo());
   $('btnResign').classList.toggle('hidden', over || !(app.mode === 'local' || !!app.myColor));
   $('btnRematchBar').classList.toggle('hidden', !over);
 
   renderResult(sc);
-  renderMoves();
+  renderScoreHistory();
+  renderAnalysis();
   redraw();
 }
 
@@ -245,53 +263,160 @@ function renderResult(sc) {
   }
 }
 
-function renderMoves() {
-  const key = app.moves.length + ':' + app.mode + ':' + (app.moves.length ? app.moves[app.moves.length - 1].coord : '');
-  el.moveCount.textContent = app.moves.length;
-  if (key === movesKey) return;
-  movesKey = key;
+function scoreEvents() {
+  let r = 0;
+  let b = 0;
+  const events = [];
+  app.moves.forEach((m, i) => {
+    if (!m.gain) return;
+    if (m.p === RED) r += m.gain;
+    else b += m.gain;
+    events.push({ n: i + 1, coord: m.coord, gain: '+' + m.gain, p: m.p, tally: r + '–' + b });
+  });
+  events.reverse();
+  return events;
+}
 
-  el.moveList.textContent = '';
-  if (!app.moves.length) {
+function renderScoreHistory() {
+  el.scoreHistory.classList.toggle('hidden', !app.historyOpen);
+  document.querySelectorAll('.pcard .chevron').forEach((c) => {
+    c.textContent = app.historyOpen ? '▴' : '▾';
+  });
+  if (!app.historyOpen) return;
+
+  const events = scoreEvents();
+  const key = events.length + ':' + (events.length ? events[0].n + events[0].tally : '');
+  el.historyCount.textContent = events.length + ' kuşatma';
+  if (key === historyKey) return;
+  historyKey = key;
+
+  el.historyList.textContent = '';
+  if (!events.length) {
     const p = document.createElement('p');
-    p.className = 'mv-empty';
-    p.textContent = 'Henüz hamle yok. Tahtadaki bir kesişime dokunarak başla.';
-    el.moveList.appendChild(p);
+    p.className = 'sh-empty';
+    p.textContent = 'Henüz kuşatma yok. Bir alanı kapattığında skor değişimi burada birikir.';
+    el.historyList.appendChild(p);
     return;
   }
 
-  const total = app.moves.length;
   const frag = document.createDocumentFragment();
-  for (let i = total - 1; i >= Math.max(0, total - MOVE_ROWS); i--) {
-    const m = app.moves[i];
-    const color = m.p === RED ? 'var(--red)' : 'var(--blue)';
+  for (const e of events) {
+    const color = e.p === RED ? 'var(--red)' : 'var(--blue)';
     const row = document.createElement('div');
-    row.className = 'mv-row';
+    row.className = 'sh-row';
 
     const n = document.createElement('span');
-    n.className = 'mv-n';
-    n.textContent = i + 1;
+    n.className = 'sh-n';
+    n.textContent = e.n + '.';
 
     const dot = document.createElement('span');
-    dot.className = 'mv-dot';
+    dot.className = 'sh-dot';
     dot.style.background = color;
 
     const coord = document.createElement('span');
-    coord.className = 'mv-coord';
-    coord.textContent = m.coord;
+    coord.className = 'sh-coord';
+    coord.textContent = e.coord;
 
-    row.append(n, dot, coord);
+    const gain = document.createElement('span');
+    gain.className = 'sh-gain';
+    gain.style.color = color;
+    gain.textContent = e.gain;
 
-    if (m.gain > 0) {
-      const gain = document.createElement('span');
-      gain.className = 'mv-gain';
-      gain.style.color = color;
-      gain.textContent = '+' + m.gain;
-      row.appendChild(gain);
-    }
+    const tally = document.createElement('span');
+    tally.className = 'sh-tally';
+    tally.textContent = e.tally;
+
+    row.append(n, dot, coord, gain, tally);
     frag.appendChild(row);
   }
-  el.moveList.appendChild(frag);
+  el.historyList.appendChild(frag);
+}
+
+function computeAnalysis() {
+  const s = app.state;
+  if (!app.analysis || !s || s.finished) return null;
+  if (anaCache.game === s) return anaCache.data;
+
+  const me = s.turn;
+  const opp = opponent(me);
+  const cand = [];
+  for (let y = 0; y < s.h; y++) {
+    for (let x = 0; x < s.w; x++) {
+      if (!canPlay(s, x, y)) continue;
+      let near = false;
+      for (let dy = -1; dy <= 1 && !near; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= s.w || ny >= s.h) continue;
+          if (s.owner[ny * s.w + nx] !== 0) { near = true; break; }
+        }
+      }
+      if (near) cand.push({ x, y });
+    }
+  }
+
+  const defensive = { ...s, turn: opp };
+  const chances = [];
+  const risks = [];
+  for (const c of cand.slice(0, ANA_CANDIDATES)) {
+    const g = captureGain(s, c.x, c.y);
+    if (g > 0) chances.push({ x: c.x, y: c.y, v: g });
+    const t = captureGain(defensive, c.x, c.y);
+    if (t > 0) risks.push({ x: c.x, y: c.y, v: t });
+  }
+  chances.sort((a, b) => b.v - a.v);
+  risks.sort((a, b) => b.v - a.v);
+
+  const data = {
+    me,
+    opp,
+    chances: chances.slice(0, ANA_MARKS),
+    risks: risks.slice(0, ANA_MARKS),
+    best: chances[0] || null,
+    worst: risks[0] || null,
+    chanceCount: chances.length,
+    riskCount: risks.length,
+  };
+  anaCache = { game: s, data };
+  return data;
+}
+
+function renderAnalysis() {
+  const ana = computeAnalysis();
+  view.analysis = ana;
+
+  el.anaSwitch.classList.toggle('on', app.analysis);
+  el.anaLegend.classList.toggle('hidden', !ana);
+  el.anaPanel.classList.toggle('hidden', !ana);
+  if (!ana) return;
+
+  el.chanceLabel.textContent = ana.chanceCount + ' fırsat';
+  el.riskLabel.textContent = ana.riskCount + ' tehdit';
+  el.anaFor.textContent = app.mode === 'local' ? colorName(ana.me) + ' için' : 'senin için';
+
+  el.chanceText.textContent = ana.best
+    ? 'En iyi kapatma · ' + coordLabel(ana.best.x, ana.best.y)
+    : 'Kapatılabilir alan yok';
+  el.chanceValue.textContent = ana.best ? '+' + ana.best.v : '—';
+  el.riskText.textContent = ana.worst
+    ? 'En büyük tehdit · ' + coordLabel(ana.worst.x, ana.worst.y)
+    : 'Açık verdiğin nokta yok';
+  el.riskValue.textContent = ana.worst ? '−' + ana.worst.v : '—';
+
+  const cv = ana.best ? ana.best.v : 0;
+  const rv = ana.worst ? ana.worst.v : 0;
+  const tot = cv + rv;
+  el.balChance.style.width = tot > 0 ? Math.round((cv / tot) * 100) + '%' : '50%';
+  el.balRisk.style.width = tot > 0 ? Math.round((rv / tot) * 100) + '%' : '50%';
+
+  if (!ana.best && !ana.worst) {
+    el.anaHint.textContent = 'Tahtada kapanmaya hazır zincir yok. Rakibini çevrelemeye başla.';
+  } else if (ana.worst && (!ana.best || ana.worst.v >= ana.best.v)) {
+    el.anaHint.textContent = 'Turuncu kesikli halkalar rakibin bir hamlede kapatabileceği yerler — önce oraya oyna.';
+  } else {
+    el.anaHint.textContent = 'Yeşil halkalar senin kapatabileceğin alanlar; sayı kaç nokta kazanacağını gösterir.';
+  }
 }
 
 function commit(next, meta) {
@@ -353,16 +478,6 @@ function requestMove(x, y) {
   }
   const next = play(app.state, x, y);
   if (next) commit(next, 'move');
-}
-
-function doPass() {
-  if (!myTurn()) return;
-  if (isOnline() && app.role === 'guest') {
-    app.net.send({ t: 'pass' });
-    return;
-  }
-  const next = pass(app.state);
-  if (next) commit(next, 'pass');
 }
 
 function doResign() {
@@ -444,7 +559,6 @@ el.board.addEventListener('click', (e) => {
   if (g) requestMove(g.x, g.y);
 });
 
-$('btnPass').addEventListener('click', doPass);
 $('btnUndo').addEventListener('click', doUndo);
 $('btnResign').addEventListener('click', doResign);
 $('btnRematchBar').addEventListener('click', doRematch);
@@ -460,6 +574,19 @@ $('btnCloseSetup').addEventListener('click', () => setOverlay(null));
 $('btnZoomIn').addEventListener('click', () => { app.zoom = Math.min(MAX_CELL, fitCell() + 4); redraw(); });
 $('btnZoomOut').addEventListener('click', () => { app.zoom = Math.max(MIN_CELL, fitCell() - 4); redraw(); });
 $('btnZoomFit').addEventListener('click', () => { app.zoom = null; redraw(); });
+
+$('btnAnalysis').addEventListener('click', () => {
+  app.analysis = !app.analysis;
+  refresh();
+});
+
+for (const card of [el.cardRed, el.cardBlue]) {
+  card.addEventListener('click', () => {
+    app.historyOpen = !app.historyOpen;
+    historyKey = '';
+    refresh();
+  });
+}
 
 window.addEventListener('resize', redraw);
 

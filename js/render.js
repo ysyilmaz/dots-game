@@ -7,6 +7,8 @@ export const COLORS = {
   coord: '#b9b0a3',
   red: '#c8102e',
   blue: '#1c5fbe',
+  chance: '#2e9e5b',
+  risk: '#d2691e',
 };
 
 const dotColor = (p) => (p === RED ? COLORS.red : COLORS.blue);
@@ -31,6 +33,7 @@ export class BoardView {
     this.showHover = false;
     this.gridEmphasis = 0.6;
     this.showCoords = false;
+    this.analysis = null;
   }
 
   get pad() {
@@ -162,6 +165,14 @@ export class BoardView {
       ctx.globalAlpha = 1;
     }
 
+    if (this.analysis) {
+      const ana = this.analysis;
+      const maxR = ana.worst ? ana.worst.v : 1;
+      for (const t of ana.risks) this.drawMark(t, COLORS.risk, true, maxR, r);
+      const maxC = ana.best ? ana.best.v : 1;
+      for (const c of ana.chances) this.drawMark(c, COLORS.chance, false, maxC, r);
+    }
+
     if (this.showHover && this.hover) {
       const [px, py] = this.toPixel(this.hover.x, this.hover.y);
       ctx.fillStyle = dotColor(s.turn);
@@ -176,6 +187,32 @@ export class BoardView {
       ctx.globalAlpha = 0.35;
       ctx.stroke();
       ctx.globalAlpha = 1;
+    }
+  }
+
+  drawMark(pt, color, dashed, maxV, r) {
+    const ctx = this.ctx;
+    const cell = this.cell;
+    const [a, b] = this.toPixel(pt.x, pt.y);
+    const rr = r + Math.max(3, cell * 0.26) * (0.72 + 0.28 * (pt.v / maxV));
+    ctx.beginPath();
+    ctx.arc(a, b, rr, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.1;
+    ctx.fill();
+    ctx.setLineDash(dashed ? [Math.max(2, cell * 0.16), Math.max(2, cell * 0.14)] : []);
+    ctx.lineWidth = Math.max(1.5, cell * 0.09);
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 0.9;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+    if (cell >= 18) {
+      ctx.font = '700 ' + Math.round(cell * 0.42) + "px 'JetBrains Mono', ui-monospace, monospace";
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillStyle = color;
+      ctx.fillText((dashed ? '−' : '+') + pt.v, a + rr * 0.7, b - rr * 0.5);
     }
   }
 

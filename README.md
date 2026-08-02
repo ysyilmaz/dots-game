@@ -27,11 +27,13 @@ Skor = ele geçirilen rakip nokta sayısı. Oyun; tahta dolduğunda, iki oyuncu 
 
 ## Arayüz
 
-Tahtanın yanındaki panel iki oyuncu kartını (sıradaki oyuncuda renkli kenar aksanı), durum satırını ve hamle geçmişini taşır. Hamleler en yeni üstte listelenir; koordinatlar `M14` biçimindedir (harf alfabesi `ABCDEFGHJKLMNPRSTUVYZ` — I/O/Q/X karışmasın diye yok), kuşatma getiren hamlenin yanında `+N` çipi çıkar.
+Tahtanın yanındaki panel iki oyuncu kartını (sıradaki oyuncuda renkli kenar aksanı) ve durum satırını taşır. Tahtanın üstünde sıranın kimde olduğunu gösteren yüzen bir etiket, sağ altında yakınlaştırma, sol altında risk analizi anahtarı durur. Izgarada 5'in katı çizgiler koyu tonda çizilir, böylece büyük tahtalarda yön bulmak kolaylaşır.
 
-Tahtanın üstünde sıranın kimde olduğunu gösteren yüzen bir etiket, sağ altında yakınlaştırma kümesi durur. Izgarada 5'in katı çizgiler koyu tonda çizilir, böylece büyük tahtalarda yön bulmak kolaylaşır.
+Panelin altındaki aksiyonlar alt alta ve tam genişliktir. Kullanılamayan aksiyon soluk gösterilmez, gizlenir: "Geri al" yalnız geri alınacak hamle varken, "Pes et" yalnız oyun sürerken görünür; oyun bitince ikisinin yerini "Rövanş" alır. Pas geçme arayüzden çıkarıldı — kuralda duruyor (bot hamle bulamadığında ve eski istemcilerden gelen `pass` mesajında kullanılıyor) ama oyuncuya sunulmuyor.
 
-Kullanılamayan aksiyonlar soluk gösterilmez, gizlenir: "Pas" yalnız sıra sendeyken, "Geri al" yalnız geri alınacak hamle varken, "Pes et" yalnız oyun sürerken görünür; oyun bitince yerlerini "Rövanş" alır.
+**Skor değişimi:** oyuncu kartlarından birine basınca açılır. Her hamleyi değil yalnız kuşatma anlarını listeler (en yeni üstte): sıra numarası, koordinat, kazanç ve o andaki skor. Koordinatlar `M14` biçimindedir — harf alfabesi `ABCDEFGHJKLMNPRSTUVYZ`, I/O/Q/X karışmasın diye çıkarıldı.
+
+**Risk analizi:** varsayılan kapalı. Açıldığında sıradaki oyuncunun gözünden iki soruyu tahtada işaretler — yeşil düz halka `+N`: oraya koyarsan kaç nokta kuşatırsın; turuncu kesikli halka `−N`: rakip oraya koyarsa kaç noktanı kuşatır. Halka büyüklüğü değerle orantılıdır, en fazla 14'er işaret çizilir. Panelde en iyi kapatma, en büyük tehdit, ikisinin dengesi ve duruma göre değişen kısa bir ipucu yer alır.
 
 Online oyunda üst barda oda kodu ve bağlantı durumu (yeşil = bağlı, sarı yanıp sönen = bekleniyor), panelde ölçülmüş gecikme ve karşı tarafa gönderilen üç hazır mesaj bulunur.
 
@@ -57,7 +59,7 @@ Hazır seçenekler 15×15, 25×25, 39×32, 55×45. Genişlik ve yükseklik 5–1
 index.html
 styles.css
 js/rules.js     kural motoru: hamle doğrulama, flood fill ile kuşatma tespiti, skor
-js/render.js    canvas çizimi, ızgara vurgusu, koordinat etiketleri
+js/render.js    canvas çizimi, ızgara vurgusu, risk analizi işaretleri
 js/net.js       MQTT taşıma katmanı ve oda kodu
 js/bot.js       tek hamlelik açgözlü rakip
 js/app.js       arayüz, oyun akışı, online protokolü

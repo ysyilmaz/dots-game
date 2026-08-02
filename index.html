@@ -41,6 +41,17 @@
       <span id="turnPillText"></span>
     </div>
 
+    <div class="analysis-cluster">
+      <button type="button" class="ana-toggle" id="btnAnalysis">
+        <span class="switch" id="anaSwitch"><i></i></span>
+        <span>Risk analizi</span>
+      </button>
+      <div class="ana-legend hidden" id="anaLegend">
+        <span class="chance"><i></i><em id="chanceLabel"></em></span>
+        <span class="risk"><i></i><em id="riskLabel"></em></span>
+      </div>
+    </div>
+
     <div class="zoom">
       <button type="button" id="btnZoomOut" aria-label="Küçült">−</button>
       <button type="button" id="btnZoomFit">Sığdır</button>
@@ -60,6 +71,7 @@
           <span class="pstate" id="stateRed">Bekliyor</span>
         </div>
         <span class="pscore" id="scoreRed">0</span>
+        <span class="chevron">▾</span>
       </div>
 
       <div class="pcard" id="cardBlue">
@@ -70,6 +82,15 @@
           <span class="pstate" id="stateBlue">Bekliyor</span>
         </div>
         <span class="pscore" id="scoreBlue">0</span>
+        <span class="chevron">▾</span>
+      </div>
+
+      <div class="score-history hidden" id="scoreHistory">
+        <div class="sh-head">
+          <span class="sec-label">Skor değişimi</span>
+          <span class="sh-count" id="historyCount">0 kuşatma</span>
+        </div>
+        <div class="sh-list" id="historyList"></div>
       </div>
 
       <p class="status" id="status">—</p>
@@ -91,19 +112,36 @@
       </div>
     </div>
 
-    <div class="moves">
-      <div class="mv-head">
-        <span class="sec-label">Hamleler</span>
-        <span class="mv-count" id="moveCount">0</span>
+    <div class="ana-panel hidden" id="anaPanel">
+      <div class="ap-head">
+        <span class="sec-label">Risk analizi</span>
+        <span class="ap-for" id="anaFor"></span>
       </div>
-      <div class="mv-list" id="moveList"></div>
+      <div class="ap-body">
+        <div class="ap-row">
+          <span class="ap-mark chance"></span>
+          <span class="ap-text" id="chanceText"></span>
+          <span class="ap-value chance" id="chanceValue">—</span>
+        </div>
+        <div class="ap-row">
+          <span class="ap-mark risk"></span>
+          <span class="ap-text" id="riskText"></span>
+          <span class="ap-value risk" id="riskValue">—</span>
+        </div>
+        <div class="ap-balance">
+          <span class="bal-chance" id="balChance"></span>
+          <span class="bal-risk" id="balRisk"></span>
+        </div>
+        <p class="ap-hint" id="anaHint"></p>
+      </div>
     </div>
 
+    <div class="panel-spacer"></div>
+
     <div class="actionbar">
-      <button type="button" class="btn" id="btnPass">Pas</button>
-      <button type="button" class="btn" id="btnUndo">Geri al</button>
-      <button type="button" class="btn danger-low" id="btnResign">Pes et</button>
-      <button type="button" class="btn primary" id="btnRematchBar">Rövanş</button>
+      <button type="button" class="btn-strong" id="btnUndo"><span class="glyph">↩</span><span>Geri al</span></button>
+      <button type="button" class="btn-quiet" id="btnResign">Pes et</button>
+      <button type="button" class="btn-rematch" id="btnRematchBar">Rövanş</button>
     </div>
   </aside>
 </main>
