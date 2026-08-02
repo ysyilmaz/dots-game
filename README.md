@@ -41,7 +41,7 @@ Online oyunda üst barda oda kodu ve bağlantı durumu (yeşil = bağlı, sarı 
 
 ## Online nasıl çalışıyor
 
-Sunucu yok. Oyun durumu, `dots-oyunu/v1/<ODA_KODU>` konusu üzerinden herkese açık bir MQTT broker'ı (sırayla EMQX, HiveMQ, Mosquitto denenir) aktarılır. Oda kuran taraf otoritedir: hamleleri doğrular ve tam oyun durumunu yayınlar; katılan taraf hamle isteği gönderir.
+Sunucu yok. Oyun durumu, `dots-oyunu/v1/<ODA_KODU>` konusu üzerinden herkese açık MQTT broker'ları (EMQX, HiveMQ, Mosquitto) aktarılır. Her istemci ulaşabildiği broker'ların hepsine birden bağlanır; ilk mesaj hangisinden gelirse ona kilitlenir. Böylece iki taraftan birinin ağı bir broker'a çıkamadığında da ortak bir sunucuda buluşurlar — panelde o an kullanılan sunucunun adı yazar. Oda kuran taraf otoritedir: hamleleri doğrular ve tam oyun durumunu yayınlar; katılan taraf hamle isteği gönderir.
 
 İki taraf 7 saniyede bir hamle sayacını içeren bir ping atar; karşı taraf `pong` ile döner (paneldeki gecikme değeri bu turdan ölçülür). Sayaçlar tutuyorsa hiçbir şey yapılmaz; tutmuyorsa tam durum yeniden yayınlanır — yani kaybolan bir mesaj kendiliğinden telafi edilir, ama boşa trafik üretilmez.
 
