@@ -63,6 +63,8 @@ js/render.js    canvas çizimi, ızgara vurgusu, risk analizi işaretleri
 js/net.js       MQTT taşıma katmanı ve oda kodu
 js/bot.js       tek hamlelik açgözlü rakip
 js/app.js       arayüz, oyun akışı, online protokolü
+test/rules.test.mjs   kural motoru testleri (bağımlılıksız)
+test/serve.mjs        yerel statik sunucu (bağımlılıksız)
 ```
 
 ## Yerelde çalıştırma
@@ -70,5 +72,13 @@ js/app.js       arayüz, oyun akışı, online protokolü
 ES modülleri `file://` üzerinden çalışmaz, statik bir sunucu gerekir:
 
 ```
-npx serve .
+node test/serve.mjs        # http://localhost:5599
 ```
+
+Kural motoru testleri:
+
+```
+node test/rules.test.mjs
+```
+
+Kuşatma algoritmasının sınır durumlarını kapsar: çapraz zincir / düz kaçış asimetrisi, boş alan çevirmenin puan getirmemesi, tahta kenarının duvar sayılmaması, tek hamlede iki ayrı bölgenin kuşatılması, kuşatılan alandaki kendi noktanın esir sayılmaması, durum serileştirme ve tahtanın tamamen dolmasıyla oyunun bitmesi.
