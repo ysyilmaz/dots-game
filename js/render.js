@@ -194,26 +194,36 @@ export class BoardView {
     const ctx = this.ctx;
     const cell = this.cell;
     const [a, b] = this.toPixel(pt.x, pt.y);
-    const rr = r + Math.max(3, cell * 0.26) * (0.72 + 0.28 * (pt.v / maxV));
+    const rr = r + Math.max(4, cell * 0.36) * (0.78 + 0.22 * (pt.v / maxV));
     ctx.beginPath();
     ctx.arc(a, b, rr, 0, Math.PI * 2);
     ctx.fillStyle = color;
-    ctx.globalAlpha = 0.1;
+    ctx.globalAlpha = 0.14;
     ctx.fill();
-    ctx.setLineDash(dashed ? [Math.max(2, cell * 0.16), Math.max(2, cell * 0.14)] : []);
-    ctx.lineWidth = Math.max(1.5, cell * 0.09);
+    ctx.setLineDash(dashed ? [Math.max(3, cell * 0.2), Math.max(2, cell * 0.15)] : []);
+    ctx.lineWidth = Math.max(2, cell * 0.13);
     ctx.strokeStyle = color;
-    ctx.globalAlpha = 0.9;
+    ctx.globalAlpha = 0.95;
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.globalAlpha = 1;
-    if (cell >= 18) {
-      ctx.font = '700 ' + Math.round(cell * 0.42) + "px 'JetBrains Mono', ui-monospace, monospace";
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'bottom';
-      ctx.fillStyle = color;
-      ctx.fillText((dashed ? '−' : '+') + pt.v, a + rr * 0.7, b - rr * 0.5);
-    }
+    if (cell < 14) return;
+
+    const size = Math.max(12, Math.round(cell * 0.54));
+    const label = (dashed ? '−' : '+') + pt.v;
+    ctx.font = '700 ' + size + "px 'JetBrains Mono', ui-monospace, monospace";
+    ctx.textBaseline = 'middle';
+    const width = ctx.measureText(label).width;
+    const right = a + rr * 0.74 + width < this.canvas.clientWidth - 2;
+    ctx.textAlign = right ? 'left' : 'right';
+    const lx = right ? a + rr * 0.74 : a - rr * 0.74;
+    const ly = b - rr * 0.62;
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(3, size * 0.36);
+    ctx.strokeStyle = COLORS.paper;
+    ctx.strokeText(label, lx, ly);
+    ctx.fillStyle = color;
+    ctx.fillText(label, lx, ly);
   }
 
   drawCapture(cap) {
