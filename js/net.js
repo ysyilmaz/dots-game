@@ -110,13 +110,15 @@ export class Net {
 
   send(msg) {
     if (!this.client) return;
-    this.client.publish(this.topic, JSON.stringify({ ...msg, from: this.id }), { qos: 1 });
+    this.client.publish(this.topic, JSON.stringify({ ...msg, from: this.id }), { qos: 1 }, (err) => {
+      if (err) console.warn('publish failed', msg.t, err.message);
+    });
   }
 
-  close() {
+  close(silent) {
     if (!this.client) return;
     try {
-      this.send({ t: 'bye' });
+      if (!silent) this.send({ t: 'bye' });
       this.client.end(true);
     } catch (e) { /* ignore */ }
     this.client = null;

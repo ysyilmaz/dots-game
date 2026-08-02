@@ -5,103 +5,203 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Dots — Kuşatmaca</title>
 <meta name="description" content="İki kişilik kuşatmaca (dots) oyunu — aynı cihazda, bota karşı veya oda kodu ile online.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='11' cy='11' r='6' fill='%23c8102e'/><circle cx='21' cy='21' r='6' fill='%231c5fbe'/></svg>">
 <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
 </head>
 <body>
 
-<header class="bar">
-  <h1>Dots <span>Kuşatmaca</span></h1>
-
-  <div class="scores">
-    <div class="side red" id="sideRed">
-      <span class="dot"></span>
-      <span class="nm" id="nameRed">Kırmızı</span>
-      <span class="val" id="scoreRed">0</span>
-    </div>
-    <div class="side blue" id="sideBlue">
-      <span class="dot"></span>
-      <span class="nm" id="nameBlue">Mavi</span>
-      <span class="val" id="scoreBlue">0</span>
-    </div>
+<header class="topbar">
+  <div class="brand">
+    <span class="mark"><i></i><i></i></span>
+    <span class="wordmark"><b>Dots</b><span>Kuşatmaca</span></span>
   </div>
 
-  <div class="actions">
-    <button id="btnPass" type="button">Pas</button>
-    <button id="btnUndo" type="button">Geri al</button>
-    <button id="btnResign" type="button">Pes et</button>
-    <button id="btnSetup" type="button" class="primary">Yeni oyun</button>
+  <div class="room-chip hidden" id="roomChip">
+    <span class="conn-dot" id="connDot"></span>
+    <span class="chip-code" id="chipCode">------</span>
+    <span class="chip-label" id="chipLabel">bağlanıyor…</span>
+  </div>
+
+  <div class="topbar-actions">
+    <button type="button" class="btn" id="btnRules">Kurallar</button>
+    <button type="button" class="btn primary" id="btnSetup">Yeni oyun</button>
   </div>
 </header>
 
-<div class="statusbar">
-  <p id="status">—</p>
-  <div class="zoom">
-    <button id="btnZoomOut" type="button" aria-label="Küçült">−</button>
-    <button id="btnZoomFit" type="button">Sığdır</button>
-    <button id="btnZoomIn" type="button" aria-label="Büyüt">+</button>
-  </div>
-</div>
+<main>
+  <section class="board-pane" id="boardWrap">
+    <canvas id="board"></canvas>
 
-<main class="board-wrap" id="boardWrap">
-  <canvas id="board"></canvas>
+    <div class="turn-pill hidden" id="turnPill">
+      <span class="pill-dot"></span>
+      <span id="turnPillText"></span>
+    </div>
+
+    <div class="zoom">
+      <button type="button" id="btnZoomOut" aria-label="Küçült">−</button>
+      <button type="button" id="btnZoomFit">Sığdır</button>
+      <button type="button" id="btnZoomIn" aria-label="Büyüt">+</button>
+    </div>
+
+    <div class="toast hidden" id="toast"></div>
+  </section>
+
+  <aside class="panel">
+    <div class="players">
+      <div class="pcard" id="cardRed">
+        <span class="accent"></span>
+        <span class="pdot"></span>
+        <div class="pinfo">
+          <span class="pname" id="nameRed">Kırmızı</span>
+          <span class="pstate" id="stateRed">Bekliyor</span>
+        </div>
+        <span class="pscore" id="scoreRed">0</span>
+      </div>
+
+      <div class="pcard" id="cardBlue">
+        <span class="accent"></span>
+        <span class="pdot"></span>
+        <div class="pinfo">
+          <span class="pname" id="nameBlue">Mavi</span>
+          <span class="pstate" id="stateBlue">Bekliyor</span>
+        </div>
+        <span class="pscore" id="scoreBlue">0</span>
+      </div>
+
+      <p class="status" id="status">—</p>
+    </div>
+
+    <div class="room-box hidden" id="roomBox">
+      <div class="rb-head">
+        <span class="sec-label">Oda kodu</span>
+        <span class="ping hidden" id="pingText"></span>
+      </div>
+      <div class="rb-code">
+        <span class="code" id="roomCode">------</span>
+        <button type="button" class="btn sm" id="btnCopyPanel">Linki kopyala</button>
+      </div>
+      <div class="quick">
+        <button type="button" class="btn sm" data-say="Selam!">Selam</button>
+        <button type="button" class="btn sm" data-say="İyi hamle.">İyi hamle</button>
+        <button type="button" class="btn sm" data-say="Acele et 🙂">Acele et</button>
+      </div>
+    </div>
+
+    <div class="moves">
+      <div class="mv-head">
+        <span class="sec-label">Hamleler</span>
+        <span class="mv-count" id="moveCount">0</span>
+      </div>
+      <div class="mv-list" id="moveList"></div>
+    </div>
+
+    <div class="actionbar">
+      <button type="button" class="btn" id="btnPass">Pas</button>
+      <button type="button" class="btn" id="btnUndo">Geri al</button>
+      <button type="button" class="btn danger-low" id="btnResign">Pes et</button>
+      <button type="button" class="btn primary" id="btnRematchBar">Rövanş</button>
+    </div>
+  </aside>
 </main>
 
-<div class="overlay hidden" id="overlay">
-  <section class="panel" id="setup">
-    <button class="close" id="btnCloseSetup" type="button" aria-label="Kapat">×</button>
+<div class="overlay hidden" id="overlaySetup">
+  <section class="modal setup">
+    <button type="button" class="close" id="btnCloseSetup" aria-label="Kapat">×</button>
     <h2>Yeni oyun</h2>
+    <p class="lede">Sırayla kesişimlere nokta koy, rakibin noktalarını çevir.</p>
 
-    <div class="field">
-      <span class="label">Oyun türü</span>
-      <div class="seg" id="modeSeg">
-        <button type="button" data-mode="local" class="on">Aynı cihazda</button>
-        <button type="button" data-mode="bot">Bota karşı</button>
-        <button type="button" data-mode="online">Online</button>
-      </div>
+    <span class="sec-label block">Oyun türü</span>
+    <div class="mode-grid" id="modeGrid">
+      <button type="button" data-mode="local" class="mode-card on">
+        <span class="mc-title">Aynı cihazda</span>
+        <span class="mc-desc">İki kişi tek ekranda</span>
+      </button>
+      <button type="button" data-mode="bot" class="mode-card">
+        <span class="mc-title">Bota karşı</span>
+        <span class="mc-desc">Tek başına alıştırma</span>
+      </button>
+      <button type="button" data-mode="online" class="mode-card">
+        <span class="mc-title">Online</span>
+        <span class="mc-desc">Oda kodu ile arkadaşınla</span>
+      </button>
     </div>
 
-    <div class="field" id="sizeField">
-      <span class="label">Tahta</span>
-      <div class="seg" id="sizeSeg">
-        <button type="button" data-w="15" data-h="15">15×15</button>
-        <button type="button" data-w="25" data-h="25">25×25</button>
-        <button type="button" data-w="39" data-h="32" class="on">39×32</button>
-        <button type="button" data-w="55" data-h="45">55×45</button>
-      </div>
-      <div class="custom">
-        <label>Genişlik <input type="number" id="inpW" min="5" max="120" value="39"></label>
-        <label>Yükseklik <input type="number" id="inpH" min="5" max="120" value="32"></label>
-        <span class="hint">5–120 arası serbest</span>
-      </div>
+    <span class="sec-label block">Tahta boyutu</span>
+    <div class="size-seg" id="sizeSeg">
+      <button type="button" data-w="15" data-h="15">15×15</button>
+      <button type="button" data-w="25" data-h="25">25×25</button>
+      <button type="button" data-w="39" data-h="32" class="on">39×32</button>
+      <button type="button" data-w="55" data-h="45">55×45</button>
+    </div>
+    <div class="size-custom">
+      <label>Genişlik <input type="number" id="inpW" min="5" max="120" value="39"></label>
+      <label>Yükseklik <input type="number" id="inpH" min="5" max="120" value="32"></label>
+      <span class="hint">5–120 arası serbest</span>
     </div>
 
-    <div class="field hidden" id="onlineField">
-      <span class="label">Online</span>
-      <div class="online-row">
-        <button type="button" id="btnHost" class="primary">Oda kur</button>
-        <span class="sep">veya</span>
-        <input type="text" id="inpRoom" placeholder="ODA KODU" maxlength="6" autocomplete="off" spellcheck="false">
-        <button type="button" id="btnJoin">Katıl</button>
+    <div class="online-block hidden" id="onlineBlock">
+      <div class="room-closed" id="roomClosed">
+        <button type="button" class="btn primary lg" id="btnHost">Oda kur ve linki paylaş</button>
+        <div class="or"><span></span><em>veya kodla katıl</em><span></span></div>
+        <div class="join-row">
+          <input type="text" id="inpRoom" maxlength="6" placeholder="ODA KODU" autocomplete="off" spellcheck="false">
+          <button type="button" class="btn md" id="btnJoin">Katıl</button>
+        </div>
       </div>
-      <div class="room hidden" id="roomBox">
-        <div class="code" id="roomCode">------</div>
-        <div class="share">
+
+      <div class="room-open hidden" id="roomOpen">
+        <div class="ro-head">
+          <span class="ro-code" id="roomCodeBig">------</span>
+          <span class="ro-conn"><i class="conn-dot waiting"></i><em id="roomConnLabel">bağlanıyor…</em></span>
+        </div>
+        <div class="share-row">
           <input type="text" id="shareLink" readonly>
-          <button type="button" id="btnCopy">Kopyala</button>
+          <button type="button" class="btn primary md" id="btnCopyModal">Linki kopyala</button>
         </div>
-        <p class="hint" id="roomHint">Bu linki arkadaşına gönder.</p>
-        <div class="room-actions hidden" id="roomActions">
-          <button type="button" id="btnRestart">Aynı odada yeniden başlat</button>
-          <button type="button" id="btnLeave">Odadan çık</button>
+        <p class="room-hint" id="roomHint"></p>
+        <div class="room-open-actions">
+          <button type="button" class="btn leave hidden" id="btnResize">Seçilen boyutla yeniden başlat</button>
+          <button type="button" class="btn leave" id="btnLeave">Odadan çık</button>
         </div>
       </div>
     </div>
 
-    <div class="foot">
-      <button type="button" id="btnStart" class="primary big">Başlat</button>
-      <p class="rules-hint">Sırayla kesişimlere nokta koyarsın. Rakip noktalarını kendi noktalarınla çevirirsen o alan senin olur.</p>
+    <div class="start-row" id="startRow">
+      <button type="button" class="btn primary xl" id="btnStart">Başlat</button>
+    </div>
+  </section>
+</div>
+
+<div class="overlay hidden" id="overlayRules">
+  <section class="modal rules">
+    <button type="button" class="close" id="btnCloseRules" aria-label="Kapat">×</button>
+    <h2>Nasıl oynanır</h2>
+    <div class="steps">
+      <div class="step"><span class="num">1</span><p>Sırayla ızgaranın kesişim noktalarına birer nokta koyarsınız.</p></div>
+      <div class="step"><span class="num">2</span><p>Kendi noktalarınla kapalı bir zincir oluşturup içinde rakip nokta bırakırsan o alan senin olur — kuşatılan noktalar içi boş görünür.</p></div>
+      <div class="step"><span class="num">3</span><p>Skor, kuşattığın rakip nokta sayısıdır. Tahta dolduğunda veya iki oyuncu da pas geçtiğinde oyun biter.</p></div>
+    </div>
+    <button type="button" class="btn wide" id="btnGotIt">Anladım</button>
+  </section>
+</div>
+
+<div class="overlay hidden" id="overlayOver">
+  <section class="modal over">
+    <p class="kicker">Oyun bitti</p>
+    <h2 id="resultTitle">—</h2>
+    <div class="final-score">
+      <div class="fs-side"><span class="fs-dot red"></span><span id="finalRed">0</span></div>
+      <span class="fs-dash">—</span>
+      <div class="fs-side"><span class="fs-dot blue"></span><span id="finalBlue">0</span></div>
+    </div>
+    <p class="result-sub" id="resultSub"></p>
+    <div class="over-actions">
+      <button type="button" class="btn" id="btnInspect">Tahtayı incele</button>
+      <button type="button" class="btn primary" id="btnRematch">Rövanş</button>
     </div>
   </section>
 </div>
